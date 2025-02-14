@@ -120,6 +120,158 @@ Available genres:
 pytest
 ```
 
+## Setup and Deployment instructions
+
+### Prerequisites
+
+- A DigitalOcean account. If you don't have one, you can sign up at [DigitalOcean](https://www.digitalocean.com/).
+
+### Step 1: Creating a DigitalOcean Droplet
+
+1. Go to the [DigitalOcean website](https://www.digitalocean.com/) and log in to your account.
+2. Click on the **"Create"** button in the top right corner of the dashboard.
+3. Select **"Droplets"** from the dropdown menu.
+4. You will be presented with a list of operating systems.
+5. Select Ubuntu or any OS you want to use for your Droplet.
+6. Select a Plan
+7. Choose a Data Center Region
+8. Choose how you want to authenticate to your Droplet:
+   - **SSH Keys**: Set this up with the ssh-keygen.
+   - **Password**: Alternatively, set a password for the root user. Use a strong password if you choose this option.
+9. Finalize and Create:
+
+- Give your Droplet a hostname (this can be anything you like).
+- Review your selections and click the **"Create Droplet"** button at the bottom of the page.
+
+### Step 2: Install Dependencies
+
+Run the following commands
+
+```bash
+sudo apt update && sudo apt install -y nginx python3 python3-venv python3-pip
+```
+
+Verify Nginx Installation:
+
+```bash
+nginx -v
+```
+
+Start and Enable Nginx:
+
+```bash
+sudo systemctl start nginx
+sudo systemctl enable nginx
+```
+
+### Step 3: Deploy the FastAPI Application
+
+Clone Your Repository:
+
+```bash
+git clone https://github.com/your-repo.git fastapi-app
+cd fastapi-app
+```
+
+Set Up a Virtual Environment and Install Dependencies:
+
+```bash
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+```
+
+Create a Systemd Service File for FastAPI:
+
+```bash
+sudo nano /etc/systemd/system/fastapi.service
+```
+
+Add the following content to the service file:
+
+```ini
+[Unit]
+Description=FastAPI application
+After=network.target
+
+[Service]
+User=ubuntu
+WorkingDirectory=/home/root/fastapi-app
+ExecStart=/root/fastapi-app/venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Start the FastAPI Service:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable fastapi
+sudo systemctl start fastapi
+sudo systemctl status fastapi
+```
+
+### Step 4: Configure Nginx as a Reverse Proxy
+
+Create a New Nginx Configuration File:
+
+```bash
+sudo nano /etc/nginx/sites-available/fastapi
+```
+
+Add the following configuration:
+
+```nginx
+server {
+    listen 80;
+    server_name your-domain-or-ip;
+
+    location / {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+}
+```
+
+Enable the Configuration:
+
+```bash
+sudo ln -s /etc/nginx/sites-available/fastapi /etc/nginx/sites-enabled/
+sudo nginx -t
+sudo systemctl restart nginx
+```
+
+Test if Nginx is Serving the FastAPI App:
+
+```bash
+curl http://localhost
+```
+
+### Step 5: Adding Secrets to GitHub
+
+1. Navigate to Your Repository Settings:
+
+   - Go to your repository on GitHub.
+   - Click on the **"Settings"** tab.
+
+2. Access Secrets:
+
+   - In the left sidebar, click on **"Secrets and Variables"**.
+   - Then select **"Actions"**.
+
+3. Add the Following Secret:
+
+   - Click on the **"New repository secret"** button to add each secret:
+     - **`SERVER_IP`**: Your EC2 instance IP address.
+     - **`SSH_PRIVATE_KEY`**: Your private SSH key (from the `.pem` file).
+
+4. Save Each Secret:
+   - After entering the name and value for each secret, click **"Add secret"** to save it.
+
 ## Error Handling
 
 The API includes proper error handling for:
